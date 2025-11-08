@@ -2,11 +2,15 @@ package com.backend.hackaton.controllers;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.backend.hackaton.dto.updatePosDTO;
 import com.backend.hackaton.models.GroupDTO;
 import com.backend.hackaton.models.GroupPostDTO;
 import com.backend.hackaton.models.Member;
@@ -32,6 +36,12 @@ public class GroupController {
         group.setDestination(data.getDestination());
         group = groupService.createSession(group);
         return ResponseEntity.ok(group);
+        
+    }
+
+    @MessageMapping("/{sessionCode}")
+    @SendTo("/receive/{sessionCode}")
+    public void processMessage(@DestinationVariable String sessionCode, @RequestBody updatePosDTO data) {
         
     }
 

@@ -25,7 +25,6 @@ public class GroupRepository {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Autowired
     public GroupRepository(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
@@ -64,4 +63,5 @@ public class GroupRepository {
         }
         return sb.toString();
     }
+
 }
