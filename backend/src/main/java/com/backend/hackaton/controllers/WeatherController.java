@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.backend.hackaton.dto.RouteRequest;
 import com.backend.hackaton.services.WeatherService;
 
 import lombok.RequiredArgsConstructor;
@@ -24,5 +25,15 @@ public class WeatherController {
             return ResponseEntity.badRequest().body("Could not fetch weather data");
         }
     }
+    
+    @GetMapping("/route")
+    public ResponseEntity<?> getRouteCoordinates(RouteRequest route){
+        if(weatherService.getRouteWeather(route) != null){
+            return ResponseEntity.ok(weatherService.getRouteWeather(route));
+        } else{
+            return ResponseEntity.badRequest().body("Could not fetch weather data for the route");
+        }
+    }
+
     
 }

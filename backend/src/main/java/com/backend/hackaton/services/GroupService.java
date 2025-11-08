@@ -3,18 +3,15 @@ package com.backend.hackaton.services;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-import com.backend.hackaton.dto.updatePosDTO;
-import com.backend.hackaton.models.GroupDTO;
+import com.backend.hackaton.dto.GroupDTO;
 import com.backend.hackaton.models.Member;
 import com.backend.hackaton.models.Position;
 import com.backend.hackaton.repositories.GroupRepository;
 
 import lombok.extern.slf4j.Slf4j;
 
-import com.backend.hackaton.models.Member;
 
 @Service
 @Slf4j
@@ -47,7 +44,7 @@ public class GroupService {
     /**
      * Update member position in a group
      */
-    public boolean updateMemberPosition(String groupCode, UUID userId, double latitude, double longitude) {
+    public boolean updateMemberPosition(String groupCode, UUID userId, Double latitude, Double longitude) {
         try {
             GroupDTO group = groupRepository.getGroupByCode(groupCode);
             if (group == null) {
@@ -57,7 +54,7 @@ public class GroupService {
             // Find the member and update their position
             for (Member member : group.getMembers()) {
                 if (member.getId().equals(userId)) {
-                    Position newPosition = new Position((float) longitude, (float) latitude);
+                    Position newPosition = new Position(longitude, latitude);
                     member.setPos(newPosition);
                     group.updateLastActivity(); // Update group's last activity
                     groupRepository.updateRecord(group);

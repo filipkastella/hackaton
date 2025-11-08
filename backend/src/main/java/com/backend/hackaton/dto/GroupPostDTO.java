@@ -1,5 +1,7 @@
-package com.backend.hackaton.models;
+package com.backend.hackaton.dto;
 import java.util.UUID;
+
+import com.backend.hackaton.models.Position;
 public class GroupPostDTO {
 
     private UUID hostId;

@@ -9,9 +9,9 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.web.bind.annotation.*;
 
+import com.backend.hackaton.dto.GroupDTO;
+import com.backend.hackaton.dto.GroupPostDTO;
 import com.backend.hackaton.dto.updatePosDTO;
-import com.backend.hackaton.models.GroupDTO;
-import com.backend.hackaton.models.GroupPostDTO;
 import com.backend.hackaton.models.Member;
 import com.backend.hackaton.services.GroupService;
 
