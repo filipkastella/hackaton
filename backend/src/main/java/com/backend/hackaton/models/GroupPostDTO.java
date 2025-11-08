@@ -1,8 +1,8 @@
 package com.backend.hackaton.models;
-
+import java.util.UUID;
 public class GroupPostDTO {
 
-    private int hostId;
+    private UUID hostId;
     private Position destination;
     private Position hostPos;
 
@@ -10,7 +10,7 @@ public class GroupPostDTO {
         return destination;
     }
 
-    public int getHostId() {
+    public UUID getHostId() {
         return hostId;
     }
 

@@ -2,7 +2,7 @@ package com.backend.hackaton.services;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
+import java.util.UUID;
 import com.backend.hackaton.models.GroupDTO;
 import com.backend.hackaton.repositories.GroupRepository;
 

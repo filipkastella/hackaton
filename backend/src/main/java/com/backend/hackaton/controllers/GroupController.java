@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
+import java.util.UUID;
 import com.backend.hackaton.models.GroupDTO;
 import com.backend.hackaton.models.GroupPostDTO;
 import com.backend.hackaton.models.Member;
