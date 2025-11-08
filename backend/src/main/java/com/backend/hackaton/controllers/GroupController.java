@@ -7,10 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.backend.hackaton.dto.updatePosDTO;
 import com.backend.hackaton.models.GroupDTO;
@@ -47,6 +44,23 @@ public class GroupController {
             return ResponseEntity.status(400).body("Failed to join group");
         } else {
             return ResponseEntity.ok(groupService.joinGroup(userId, groupCode, username));
+        }
+    }
+
+    @PostMapping("/updatePosition")
+    public ResponseEntity<?> updateMemberPosition(@RequestParam String groupCode,
+                                                @RequestParam UUID userId,
+                                                @RequestParam double latitude,
+                                                @RequestParam double longitude) {
+        try {
+            boolean updated = groupService.updateMemberPosition(groupCode, userId, latitude, longitude);
+            if (updated) {
+                return ResponseEntity.ok().body("Position updated successfully");
+            } else {
+                return ResponseEntity.status(404).body("Group or member not found");
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error updating position: " + e.getMessage());
         }
     }
 
