@@ -1,9 +1,15 @@
 package com.backend.hackaton.controllers;
 
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.web.bind.annotation.*;
-import java.util.UUID;
+
+import com.backend.hackaton.dto.updatePosDTO;
 import com.backend.hackaton.models.GroupDTO;
 import com.backend.hackaton.models.GroupPostDTO;
 import com.backend.hackaton.models.Member;
@@ -56,6 +62,12 @@ public class GroupController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error updating position: " + e.getMessage());
         }
+    }
+
+    @MessageMapping("/{sessionCode}")
+    @SendTo("/receive/{sessionCode}")
+    public void processMessage(@DestinationVariable String sessionCode, @RequestBody updatePosDTO data) {
+        
     }
 
 }
