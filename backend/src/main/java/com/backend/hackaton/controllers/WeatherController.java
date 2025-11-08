@@ -2,12 +2,14 @@ package com.backend.hackaton.controllers;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.backend.hackaton.dto.RouteRequest;
 import com.backend.hackaton.services.WeatherService;
 
+import org.springframework.web.bind.annotation.RequestBody;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -26,8 +28,8 @@ public class WeatherController {
         }
     }
     
-    @GetMapping("/route")
-    public ResponseEntity<?> getRouteCoordinates(RouteRequest route){
+    @PostMapping("/route")
+    public ResponseEntity<?> getRouteCoordinates(@RequestBody RouteRequest route){
         if(weatherService.getRouteWeather(route) != null){
             return ResponseEntity.ok(weatherService.getRouteWeather(route));
         } else{
