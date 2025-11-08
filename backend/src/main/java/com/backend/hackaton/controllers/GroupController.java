@@ -25,23 +25,14 @@ public class GroupController {
 
     @PostMapping("/groupMake")
     public ResponseEntity<GroupDTO> groupMake(@RequestBody GroupPostDTO data) {
-         try {
-            // Add validation
-            if (data.getHostId() == null || data.getHostPos() == null || data.getDestination() == null) {
-                return ResponseEntity.badRequest().body("Missing required fields");
-            }
-            
-            GroupDTO group = new GroupDTO();
-            Member host = new Member(data.getHostId(), true);
-            host.setPos(data.getHostPos());
-            group.addMember(host);
-            group.setDestination(data.getDestination());
-            group = groupService.createSession(group);
-            return ResponseEntity.ok(group);
-        } catch (Exception e) {
-            e.printStackTrace(); // Check logs for actual error
-            return ResponseEntity.status(500).body("Error creating group: " + e.getMessage());
-        }
+        GroupDTO group = new GroupDTO();
+        Member host = new Member(data.getHostId(), true);
+        host.setPos(data.getHostPos());
+        group.addMember(host);
+        group.setDestination(data.getDestination());
+        group = groupService.createSession(group);
+        return ResponseEntity.ok(group);
+        
     }
 
     @PostMapping("/joinGroup")
