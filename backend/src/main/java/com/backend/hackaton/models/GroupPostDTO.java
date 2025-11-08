@@ -6,6 +6,11 @@ public class GroupPostDTO {
     private String hostUsername;
     private Position destination;
     private Position hostPos;
+    private String name;
+
+    public String getName() {
+        return name;
+    }
 
     public Position getDestination() {
         return destination;

@@ -23,7 +23,7 @@ public class GroupController {
     @PostMapping("/groupMake")
     public ResponseEntity<GroupDTO> groupMake(@RequestBody GroupPostDTO data) {
         GroupDTO group = new GroupDTO();
-        Member host = new Member(data.getHostId(), data.getHostUsername(), true);
+        Member host = new Member(data.getHostId(), data.getName(), true);
         host.setPos(data.getHostPos());
         group.addMember(host);
         group.setDestination(data.getDestination());
@@ -33,13 +33,11 @@ public class GroupController {
     }
 
     @PostMapping("/joinGroup")
-    public ResponseEntity<?> joinGroup(@RequestParam UUID userId, 
-                                     @RequestParam String groupCode, 
-                                     @RequestParam String username) {
-        if(groupService.joinGroup(userId, groupCode, username)){
-            return ResponseEntity.ok().build();
+    public ResponseEntity<?> joinGroup(UUID userId, String groupCode, String username) {
+        if(groupService.joinGroup(userId, groupCode, username) == null){
+            return ResponseEntity.status(400).body("Failed to join group");
         } else {
-            return ResponseEntity.status(404).body("Group not found");
+            return ResponseEntity.ok(groupService.joinGroup(userId, groupCode, username));
         }
     }
 

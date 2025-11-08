@@ -1,6 +1,9 @@
 package com.backend.hackaton.services;
 
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -18,9 +21,11 @@ public class WeatherService {
             latitude,
             longitude
         );
-        return restTemplate.getForObject(url, WeatherResponse.class);
+        WeatherResponse response = restTemplate.getForObject(url, WeatherResponse.class);
+
+        return filterFutureData(response);
     }
-/* 
+
     private WeatherResponse filterFutureData(WeatherResponse response) {
         if(response == null || response.getHourly() == null){
             return response;
@@ -33,7 +38,7 @@ public class WeatherService {
         List<Double> temperatures = response.getHourly().getTemperature_2m();
         List<Integer> precipitationProbabilities = response.getHourly().getPrecipitation_probability();
         List<Long> visibility = response.getHourly().getVisibility();
-        List<Double> wind_speed_10m = response.getHourly().getWind_speed_10m();
+        List<Double> windSpeed10m = response.getHourly().getWind_speed_10m();
 
         List<String> filteredTimes = new ArrayList<>();
         List<Double> filteredTemperatures = new ArrayList<>();
@@ -45,9 +50,21 @@ public class WeatherService {
             LocalDateTime timePoint = LocalDateTime.parse(times.get(i), formatter);
 
             if(!timePoint.isBefore(now)){
-
+                filteredTimes.add(times.get(i));
+                filteredTemperatures.add(temperatures.get(i));
+                filteredPrecipitationProbabilities.add(precipitationProbabilities.get(i));
+                filteredVisibility.add(visibility.get(i));
+                filteredWindSpeed10m.add(windSpeed10m.get(i));
             }
         }
 
-    } */
+        response.getHourly().setTime(filteredTimes);
+        response.getHourly().setTemperature_2m(filteredTemperatures);
+        response.getHourly().setPrecipitation_probability(filteredPrecipitationProbabilities);
+        response.getHourly().setVisibility(filteredVisibility);
+        response.getHourly().setWind_speed_10m(filteredWindSpeed10m);
+
+        return response;
+
+    }
 }
