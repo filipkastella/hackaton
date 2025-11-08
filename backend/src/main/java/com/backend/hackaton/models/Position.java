@@ -1,5 +1,8 @@
 package com.backend.hackaton.models;
 
+import lombok.ToString;
+
+@ToString
 public class Position {
 
     private Double longitude;
