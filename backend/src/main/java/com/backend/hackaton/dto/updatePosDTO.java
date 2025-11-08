@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class updatePosDTO {
 
-    private UUID sender;
+    private UUID userID;
     private Position newPos;
 
 }
