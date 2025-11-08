@@ -9,18 +9,17 @@ import org.springframework.stereotype.Service;
 import com.backend.hackaton.dto.updatePosDTO;
 import com.backend.hackaton.models.GroupDTO;
 import com.backend.hackaton.models.Member;
+import com.backend.hackaton.models.Position;
 import com.backend.hackaton.repositories.GroupRepository;
 
 @Service
 public class GroupService {
 
     private final GroupRepository groupRepository;
-    private final SimpMessagingTemplate messagingTemplate;
 
     @Autowired
-    public GroupService(GroupRepository groupRepository, SimpMessagingTemplate messagingTemplate) {
+    public GroupService(GroupRepository groupRepository) {
         this.groupRepository = groupRepository;
-        this.messagingTemplate = messagingTemplate;
     }
 
     public GroupDTO createSession(GroupDTO groupDTO) {
