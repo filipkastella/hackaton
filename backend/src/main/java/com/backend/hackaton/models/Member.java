@@ -8,9 +8,10 @@ public class Member {
     private Position pos;
     private boolean host;
 
-    public Member(UUID id, boolean host) {
+    public Member(UUID id, String username, boolean host) {
         this.id = id;
         this.host = host;
+        this.name = username;
     }
 
     public Member() {

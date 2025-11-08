@@ -36,8 +36,8 @@ public class GroupController {
     }
 
     @PostMapping("/joinGroup")
-    public ResponseEntity<?> joinGroup(UUID userId, String groupCode){
-        if(groupService.joinGroup(userId, groupCode) == true){
+    public ResponseEntity<?> joinGroup(UUID userId, String groupCode, String username) {
+        if(groupService.joinGroup(userId, groupCode, username) == true){
             return ResponseEntity.ok().build();
         } else {
             return ResponseEntity.status(404).body("Group not found");

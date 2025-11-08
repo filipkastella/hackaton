@@ -21,10 +21,10 @@ public class GroupService {
         return groupRepository.saveRecord(groupDTO);
     }
 
-    public boolean joinGroup(UUID userId, String groupCode) {
+    public boolean joinGroup(UUID userId, String groupCode, String username) {
 
         GroupDTO group = groupRepository.getGroupByCode(groupCode);
-        group.addMember(new Member(userId, false));
+        group.addMember(new Member(userId, username, false));
         groupRepository.saveRecord(group);
         return true;
     }
