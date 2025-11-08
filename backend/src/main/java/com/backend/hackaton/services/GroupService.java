@@ -23,7 +23,7 @@ public class GroupService {
 
     public boolean joinGroup(UUID userId, String groupCode) {
 
-        GroupDTO group = groupRepository.findByCode(groupCode);
+        GroupDTO group = groupRepository.getGroupByCode(groupCode);
         group.addMember(new Member(userId, false));
         groupRepository.saveRecord(group);
         return true;
