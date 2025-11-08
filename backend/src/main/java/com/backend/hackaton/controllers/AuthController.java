@@ -14,7 +14,7 @@ import com.backend.hackaton.services.AuthService;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = {"*", "https://parf-api.up.railway.app"})
 public class AuthController {
 
     private final AuthService authService;
