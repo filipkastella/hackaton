@@ -43,4 +43,8 @@ public class GroupPostDTO {
     public void setHostPos(Position hostPos) {
         this.hostPos = hostPos;
     }
+
+    public void setName(String name) {
+        this.name = name;
+    }
 }

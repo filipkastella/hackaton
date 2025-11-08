@@ -105,4 +105,46 @@ public class GroupRepository {
         }
     }
 
+    /**
+     * Get all groups from Redis for cleanup operations
+     */
+    public java.util.List<GroupDTO> getAllGroups() {
+        java.util.Set<String> keys = redisTemplate.keys(PREFIX + "*");
+        java.util.List<GroupDTO> groups = new java.util.ArrayList<>();
+        
+        if (keys != null) {
+            ValueOperations<String, String> ops = redisTemplate.opsForValue();
+            for (String key : keys) {
+                String jsonValue = ops.get(key);
+                if (jsonValue != null) {
+                    try {
+                        GroupDTO group = objectMapper.readValue(jsonValue, GroupDTO.class);
+                        groups.add(group);
+                    } catch (JsonProcessingException e) {
+                        System.err.println("Failed to deserialize group from key: " + key);
+                    }
+                }
+            }
+        }
+        
+        return groups;
+    }
+
+    /**
+     * Delete a group from Redis by group code
+     */
+    public Boolean deleteGroup(String groupCode) {
+        String key = PREFIX + groupCode;
+        Boolean deleted = redisTemplate.delete(key);
+        System.out.println("Deleted group " + groupCode + " from Redis: " + deleted);
+        return deleted;
+    }
+
+    /**
+     * Update group data in Redis
+     */
+    public void updateGroup(GroupDTO group) {
+        updateRecord(group);
+    }
+
 }
