@@ -33,20 +33,20 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest req) {
-        String nickname;
+        String username;
         User user;
         
         // Keep generating nicknames until we find a unique one
         do {
-            nickname = generateRandomNickname();
-        } while (userRepository.findByNickname(nickname).isPresent());
+            username = generateRandomNickname();
+        } while (userRepository.findByUsername(username).isPresent());
         
         // Create and save new user to PostgreSQL database
         user = new User();
-        user.setNickname(nickname);
+        user.setUsername(username);
         user = userRepository.save(user);
         
-        return new AuthResponse(user.getId(), user.getNickname());
+        return new AuthResponse(user.getId(), user.getUsername());
     }
 
     private String generateRandomNickname() {

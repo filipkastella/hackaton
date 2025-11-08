@@ -9,5 +9,5 @@ import com.backend.hackaton.models.User;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-    Optional<User> findByNickname(String nickname);
+    Optional<User> findByUsername(String username);
 }
