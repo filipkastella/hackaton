@@ -20,8 +20,8 @@ public class WeatherService {
         );
         return restTemplate.getForObject(url, WeatherResponse.class);
     }
-/* 
-    private WeatherResponse filterFutureData(WeatherResponse response) {
+
+  /*   private WeatherResponse filterFutureData(WeatherResponse response) {
         if(response == null || response.getHourly() == null){
             return response;
         }
@@ -45,7 +45,7 @@ public class WeatherService {
             LocalDateTime timePoint = LocalDateTime.parse(times.get(i), formatter);
 
             if(!timePoint.isBefore(now)){
-
+                
             }
         }
 

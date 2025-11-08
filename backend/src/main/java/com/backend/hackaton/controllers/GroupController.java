@@ -26,7 +26,7 @@ public class GroupController {
     @PostMapping("/groupMake")
     public ResponseEntity<GroupDTO> groupMake(@RequestBody GroupPostDTO data) {
         GroupDTO group = new GroupDTO();
-        Member host = new Member(data.getHostId(), true);
+        Member host = new Member(data.getHostId(), data.getName(), true);
         host.setPos(data.getHostPos());
         group.addMember(host);
         group.setDestination(data.getDestination());
