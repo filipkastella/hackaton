@@ -7,10 +7,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.backend.hackaton.dto.GroupDTO;
 import com.backend.hackaton.dto.GroupPostDTO;
+import com.backend.hackaton.dto.WebSocketResponse;
 import com.backend.hackaton.dto.updatePosDTO;
 import com.backend.hackaton.models.Member;
 import com.backend.hackaton.services.GroupService;
@@ -20,10 +25,12 @@ import com.backend.hackaton.services.GroupService;
 public class GroupController {
     
     private final GroupService groupService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Autowired
-    public GroupController(GroupService groupService) {
+    public GroupController(GroupService groupService, SimpMessagingTemplate messagingTemplate) {
         this.groupService = groupService;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @PostMapping("/groupMake")
@@ -47,7 +54,7 @@ public class GroupController {
         }
     }
 
-    @PostMapping("/updatePosition")
+/*     @PostMapping("/updatePosition")
     public ResponseEntity<?> updateMemberPosition(@RequestParam String groupCode,
                                                 @RequestParam UUID userId,
                                                 @RequestParam double latitude,
@@ -62,12 +69,22 @@ public class GroupController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error updating position: " + e.getMessage());
         }
-    }
+    } */
 
     @MessageMapping("/{sessionCode}")
     @SendTo("/receive/{sessionCode}")
     public void processMessage(@DestinationVariable String sessionCode, @RequestBody updatePosDTO data) {
-        
+        boolean success = groupService.updateUserCoordinates(sessionCode, data);
+
+        WebSocketResponse response = new WebSocketResponse();
+        response.setCode(success ? 200 : 400);
+        response.setMessage(success ? "Coordinates updated" : "Failed to update user");
+        response.setSessionCode(sessionCode);
+        response.setUserId(data.getUserID());
+        response.setNewPos(data.getNewPos());
+
+        // Send broadcast to all subscribers of that session
+        messagingTemplate.convertAndSend("/receive/" + sessionCode, response);
     }
 
 }

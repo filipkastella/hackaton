@@ -4,16 +4,13 @@ import java.util.UUID;
 
 import com.backend.hackaton.models.Position;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class updatePosDTO {
-
-    private UUID userID;
+public class WebSocketResponse {
+    private int code;
+    private String message;
+    private String sessionCode;
+    private UUID userId;
     private Position newPos;
-
 }
