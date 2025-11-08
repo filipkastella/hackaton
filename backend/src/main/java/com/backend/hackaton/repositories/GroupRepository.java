@@ -20,13 +20,13 @@ public class GroupRepository {
     private final int MAX_ATTEMPTS = 20;
 
     private final SecureRandom random = new SecureRandom();
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Autowired
-    private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    public GroupRepository(StringRedisTemplate redisTemplate) {
+    public GroupRepository(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     public GroupDTO saveNewRecord(GroupDTO group) {
