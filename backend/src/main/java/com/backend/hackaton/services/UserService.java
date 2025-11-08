@@ -15,12 +15,4 @@ public class UserService {
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
-
-    public boolean joinGroup(UUID userId, String groupCode){
-
-        GroupDTO group = groupRepository.findByCode(groupCode);
-        group.addMember(new Member(userId, false));
-        groupRepository.saveRecord(group);
-        return true;
-    }
 }

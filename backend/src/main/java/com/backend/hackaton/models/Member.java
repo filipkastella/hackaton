@@ -1,12 +1,14 @@
 package com.backend.hackaton.models;
 
+import java.util.UUID;
+
 public class Member {
-    private int id;
+    private UUID id;
     private String name;
     private Position pos;
     private boolean host;
 
-    public Member(int id, boolean host) {
+    public Member(UUID id, boolean host) {
         this.id = id;
         this.host = host;
     }
@@ -18,7 +20,7 @@ public class Member {
         this.pos = pos;
     }
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
