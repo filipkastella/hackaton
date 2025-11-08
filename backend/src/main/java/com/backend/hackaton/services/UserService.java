@@ -8,7 +8,6 @@ import com.backend.hackaton.repositories.UserRepository;
 @Service
 public class UserService {
 
-    private final GroupRepository groupRepository;
     private UserRepository userRepository;
 
     @Autowired
