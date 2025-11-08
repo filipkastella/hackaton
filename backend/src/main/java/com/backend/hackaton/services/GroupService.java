@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 import com.backend.hackaton.models.GroupDTO;
 import com.backend.hackaton.repositories.GroupRepository;
+import com.backend.hackaton.models.Member;
 
 @Service
 public class GroupService {
