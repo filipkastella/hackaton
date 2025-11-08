@@ -19,7 +19,8 @@ public class UserService {
     public boolean joinGroup(UUID userId, String groupCode){
 
         GroupDTO group = groupRepository.findByCode(groupCode);
-
-        
+        group.addMember(new Member(userId, false));
+        groupRepository.saveRecord(group);
+        return true;
     }
 }
