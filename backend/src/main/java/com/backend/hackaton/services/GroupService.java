@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.backend.hackaton.dto.GroupDTO;
+import com.backend.hackaton.dto.updatePosDTO;
 import com.backend.hackaton.models.Member;
 import com.backend.hackaton.repositories.GroupRepository;
 
