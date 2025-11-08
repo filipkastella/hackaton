@@ -64,4 +64,21 @@ public class GroupRepository {
         }
         return sb.toString();
     }
+
+    public GroupDTO getGroupByCode(String code) {
+        ValueOperations<String, String> ops = redisTemplate.opsForValue();
+        String key = PREFIX + code;
+        String jsonValue = ops.get(key);
+
+        if (jsonValue == null) {
+            return null; // or throw an exception if preferred
+        }
+
+        try {
+            return objectMapper.readValue(jsonValue, GroupDTO.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to deserialize JSON to DTO", e);
+        }
+    }
+
 }

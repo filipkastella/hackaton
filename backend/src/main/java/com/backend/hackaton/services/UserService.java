@@ -7,10 +7,19 @@ import com.backend.hackaton.repositories.UserRepository;
 
 @Service
 public class UserService {
+
+    private final GroupRepository groupRepository;
     private UserRepository userRepository;
 
     @Autowired
     public UserService(UserRepository userRepository) {
         this.userRepository = userRepository;
+    }
+
+    public boolean joinGroup(UUID userId, String groupCode){
+
+        GroupDTO group = groupRepository.findByCode(groupCode);
+
+        
     }
 }

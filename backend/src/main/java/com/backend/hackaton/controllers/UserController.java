@@ -19,6 +19,6 @@ public class UserController {
         this.userService = userService;
     }
 
-    @GetMapping("")
-    public ResponseEntity<String> 
+/* @GetMapping("")
+public ResponseEntity<String>  */
 }
