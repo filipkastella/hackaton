@@ -6,6 +6,7 @@ import {
   Dimensions,
   Easing,
   Keyboard,
+  Modal,
   PanResponder,
   Pressable,
   ScrollView,
@@ -26,6 +27,9 @@ Mapbox.setAccessToken(MAPBOX_TOKEN);
 const { height } = Dimensions.get("window");
 const COLLAPSED_HEIGHT = 80;
 const EXPANDED_HEIGHT = height * 0.82;
+
+// WebSocket broker URL for STOMP (set to your backend WS endpoint)
+const WS_BROKER_URL = new WebSocket("wss://parf-api.up.railway.app/ws"); 
 
 
 export default function HomeScreen() {
@@ -56,11 +60,43 @@ export default function HomeScreen() {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
 
+  // Weather alerts and popup
+  const [weatherAlerts, setWeatherAlerts] = useState<{
+    long: number;
+    lang: number;
+    type?: string;
+  }[]>([]);
+  const [activeWeatherEmoji, setActiveWeatherEmoji] = useState<string | null>(null);
+
+  // Join group modal state
+  const [joinVisible, setJoinVisible] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+
 
   const translateY = useRef(new Animated.Value(height - COLLAPSED_HEIGHT)).current;
   const [isExpanded, setIsExpanded] = useState(false);
   const cameraRef = useRef<Mapbox.Camera>(null);
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const nearestAlertIdxRef = useRef<number | null>(null);
+  const lastPopupAtRef = useRef<number>(0);
+
+  // STOMP/WebSocket refs
+  const stompClientRef = useRef<any | null>(null);
+  const stompConnectedRef = useRef<boolean>(false);
+  const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    // Shared pulsing animation for weather markers and popup
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0, duration: 1000, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
   // GPS noise filter helpers
   const lastAcceptedCoordsRef = useRef<number[] | null>(null);
@@ -79,6 +115,40 @@ export default function HomeScreen() {
     const h = sinDLat * sinDLat + Math.cos(la1) * Math.cos(la2) * sinDLon * sinDLon;
     const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
     return R * c;
+  };
+
+  // === Polyline sampling helpers (for every 5km points) ===
+  const lerpPoint = (a: number[], b: number[], t: number): number[] => [
+    a[0] + (b[0] - a[0]) * t,
+    a[1] + (b[1] - a[1]) * t,
+  ];
+
+  const pointAtDistance = (coords: number[][], cum: number[], target: number): number[] => {
+    if (target <= 0) return coords[0];
+    const lastIdx = cum.length - 1;
+    if (target >= cum[lastIdx]) return coords[lastIdx];
+
+    let i = 0;
+    while (i < lastIdx && cum[i + 1] < target) i++;
+
+    const segLen = cum[i + 1] - cum[i];
+    const t = segLen > 0 ? (target - cum[i]) / segLen : 0;
+    return lerpPoint(coords[i], coords[i + 1], t);
+  };
+
+  // Returns array of [lon, lat] pairs at each stepMeters along the route
+  const getEveryNkmPointsArray = (
+    coords: number[][],
+    cum: number[],
+    total: number,
+    stepMeters = 5000
+  ): number[][] => {
+    const points: number[][] = [];
+    for (let d = stepMeters; d < total; d += stepMeters) {
+      const [lon, lat] = pointAtDistance(coords, cum, d);
+      points.push([lon, lat]);
+    }
+    return points;
   };
 
   // Find nearest index along a polyline to a given coord
@@ -110,6 +180,46 @@ export default function HomeScreen() {
     return "↑"; // continue/unknown
   };
 
+
+  // Map backend weather type to an emoji (for markers)
+  const emojiForType = (t?: string): string => {
+    const k = (t || "").toLowerCase();
+    if (k.includes("storm") || k.includes("thunder")) return "⛈️";
+    if (k.includes("rain") || k.includes("shower")) return "🌧️";
+    if (k.includes("snow")) return "❄️";
+    if (k.includes("wind")) return "💨";
+    if (k.includes("fog") || k.includes("mist")) return "🌫️";
+    if (k.includes("hail") || k.includes("ice")) return "🌨️";
+    return "⚠️";
+  };
+
+  // Map backend weather type to a human-readable label for the popup
+  const labelForWeatherType = (t?: string): string => {
+    const k = (t || "").toLowerCase();
+    if (!k) return "Unknown";
+    if (k.includes("clear")) return "Clear";
+    if (k.includes("heavy") && (k.includes("storm") || k.includes("thunder"))) return "Heavy Storm";
+    if (k.includes("storm") || k.includes("thunder")) return "Storm";
+    if (k.includes("light") && k.includes("rain")) return "Light Rain";
+    if (k.includes("rain") || k.includes("shower") || k.includes("drizzle")) return "Raining";
+    if (k.includes("dense") && (k.includes("fog") || k.includes("mist"))) return "Dense Fog";
+    if (k.includes("fog") || k.includes("mist")) return "Foggy";
+    if (k.includes("visibility") || k.includes("haze")) return "Reduced Visibility";
+    if (k.includes("severe") && k.includes("wind")) return "Severe Winds";
+    if (k.includes("strong") && k.includes("wind")) return "Strong Winds";
+    if (k.includes("wind")) return "Windy";
+    return "Unknown";
+  };
+
+  // Popup trigger now shows words, not emoji
+  const triggerWeatherPopup = (type?: string) => {
+    try {
+      const emoji = emojiForType(type);
+      try { console.log("[Weather Popup] Showing emoji:", emoji, "(type=", type || "", ")"); } catch {}
+      setActiveWeatherEmoji(emoji);
+      setTimeout(() => setActiveWeatherEmoji(null), 10000); // show for 10 seconds
+    } catch {}
+  };
 
   interface User {
     userName: string;
@@ -157,6 +267,99 @@ export default function HomeScreen() {
 
   const isFiniteNumber = (n: any) => typeof n === 'number' && Number.isFinite(n);
   const isValidPosition = (p: any) => p && isFiniteNumber(p.longitude) && isFiniteNumber(p.latitude);
+
+  // Start STOMP client and publish coords every 2s
+  const stopGroupRealtime = () => {
+    try {
+      if (heartbeatTimerRef.current) {
+        clearInterval(heartbeatTimerRef.current);
+        heartbeatTimerRef.current = null;
+      }
+      if (stompClientRef.current) {
+        try { stompClientRef.current.deactivate?.(); } catch {}
+      }
+    } finally {
+      stompClientRef.current = null;
+      stompConnectedRef.current = false;
+    }
+  };
+
+  const startGroupRealtime = async (groupCode?: string | null) => {
+    if (!groupCode || !user) return;
+    stopGroupRealtime();
+    let StompMod: any = null;
+    try {
+      // Prefer require to avoid static import if not installed
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      StompMod = require("@stomp/stompjs");
+    } catch (e) {
+      console.warn("@stomp/stompjs is not installed. Please add it to use realtime.");
+      return;
+    }
+    const Client = StompMod?.Client || StompMod?.CompatClient || StompMod?.default?.Client;
+    if (!Client) {
+      console.warn("Unable to load STOMP Client constructor");
+      return;
+    }
+    const client = new Client({
+      brokerURL: WS_BROKER_URL,
+      reconnectDelay: 5000,
+      debug: (str: string) => {
+        try { console.log("[STOMP]", str); } catch {}
+      },
+      onConnect: () => {
+        stompConnectedRef.current = true;
+        try { console.log("[STOMP] connected"); } catch {}
+
+        // Subscribe to group receive channel
+        try {
+          client.subscribe(`/receive/${groupCode}`, (message: any) => {
+            try {
+              const data = JSON.parse(message?.body || '{}');
+              if (data?.code === 200) {
+                console.log(`✅ ${data.userId} moved to`, data.newPos);
+              } else {
+                console.warn(`❌ Update failed: ${data?.message}`);
+              }
+            } catch (e) {
+              console.warn("[STOMP] parse error", e);
+            }
+          });
+        } catch (e) {
+          console.warn("[STOMP] subscribe error", e);
+        }
+
+        // Publish position every 2 seconds
+        heartbeatTimerRef.current = setInterval(() => {
+          if (!userCoords) return;
+          if (!stompConnectedRef.current) return;
+          try {
+            const body = {
+              userID: String(user.id),
+              newPos: { lat: userCoords[1], lng: userCoords[0] },
+            };
+            client.publish({ destination: `/send/${groupCode}`, body: JSON.stringify(body) });
+          } catch (e) {
+            console.warn("[STOMP] publish error", e);
+          }
+        }, 2000);
+      },
+      onStompError: (f: any) => {
+        console.warn("[STOMP] stomp error", f?.headers?.message || f);
+      },
+      onWebSocketClose: () => {
+        stompConnectedRef.current = false;
+        console.warn("[STOMP] websocket closed");
+      },
+    });
+    stompClientRef.current = client;
+    try { client.activate(); } catch (e) { console.warn("[STOMP] activate error", e); }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopGroupRealtime();
+  }, []);
 
 
   // === Get user location and track changes ===
@@ -229,6 +432,42 @@ export default function HomeScreen() {
               }
             } catch {}
           }
+
+          // Show popup for the nearest upcoming weather alert (throttled)
+          try {
+            const now = Date.now();
+            if (weatherAlerts.length && routeCoords && routeMeta && userCoords) {
+              const uIdx = nearestCoordIndex(routeCoords, userCoords);
+              let bestAheadDelta = Infinity;
+              let bestI = -1;
+              for (let i = 0; i < weatherAlerts.length; i++) {
+                const a = weatherAlerts[i];
+                const aIdx = nearestCoordIndex(routeCoords, [a.long, a.lang]);
+                const delta = aIdx - uIdx; // ahead if >= 0
+                if (delta >= 0 && delta < bestAheadDelta) {
+                  bestAheadDelta = delta;
+                  bestI = i;
+                }
+              }
+              if (bestI === -1) {
+                // fallback: nearest by distance (no ahead points)
+                let minD = Infinity;
+                for (let i = 0; i < weatherAlerts.length; i++) {
+                  const a = weatherAlerts[i];
+                  const d = distanceMeters(userCoords, [a.long, a.lang]);
+                  if (d < minD) { minD = d; bestI = i; }
+                }
+              }
+              if (bestI >= 0) {
+                if (nearestAlertIdxRef.current !== bestI && now - lastPopupAtRef.current > 5000) {
+                  try { console.log("[Weather Popup] Next alert selected index:", bestI, "prev:", nearestAlertIdxRef.current); } catch {}
+                  nearestAlertIdxRef.current = bestI;
+                  lastPopupAtRef.current = now;
+                  triggerWeatherPopup(weatherAlerts[bestI]?.type);
+                }
+              }
+            }
+          } catch {}
         }
       }
     );
@@ -312,6 +551,7 @@ export default function HomeScreen() {
       // API requires hostId to be a UUID string
       const payload: any = {
         hostId: String(currentUser.id),
+        username: String(currentUser.userName),
         destination: destObj,
         hostPos: hostPosObj,
       };
@@ -327,19 +567,53 @@ export default function HomeScreen() {
 
       for (const url of endpoints) {
         try {
-          const res = await fetch(url, {
+          // 1) Try JSON with charset
+          const resJson = await fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            headers: { "Content-Type": "application/json; charset=utf-8", Accept: "application/json" },
             body: JSON.stringify(payload),
           });
-          lastStatus = res.status;
-          if (res.ok) {
-            data = await res.json();
+          lastStatus = resJson.status;
+          if (resJson.ok) {
+            try { console.log("groupMake: JSON+charset succeeded"); } catch {}
+            data = await resJson.json();
             break;
-          } else {
+          }
+
+          // 2) If 415, try form-encoded fallback
+          if (resJson.status === 415) {
             try {
-              // Try parse error JSON for message
-              const text = await res.text();
+              const form = new URLSearchParams({
+                hostId: String(payload.hostId ?? ""),
+                "destination.longitude": String(payload?.destination?.longitude ?? ""),
+                "destination.latitude": String(payload?.destination?.latitude ?? ""),
+                "hostPos.longitude": String(payload?.hostPos?.longitude ?? ""),
+                "hostPos.latitude": String(payload?.hostPos?.latitude ?? ""),
+              }).toString();
+              const resForm = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+                body: form,
+              });
+              lastStatus = resForm.status;
+              if (resForm.ok) {
+                try { console.log("groupMake: x-www-form-urlencoded fallback succeeded"); } catch {}
+                data = await resForm.json();
+                break;
+              } else {
+                try {
+                  const text = await resForm.text();
+                  lastBody = text;
+                } catch {}
+                break;
+              }
+            } catch (e) {
+              console.warn("groupMake form fallback error", e);
+            }
+          } else {
+            // 3) Non-415 failure, capture body
+            try {
+              const text = await resJson.text();
               lastBody = text;
               try {
                 const j = JSON.parse(text);
@@ -347,7 +621,7 @@ export default function HomeScreen() {
                 if (j?.error) console.warn("groupMake server error:", j.error);
               } catch {}
             } catch {}
-            if (res.status !== 404) break;
+            if (resJson.status !== 404) break;
           }
         } catch (err) {
           console.error("Group make fetch error for endpoint", err);
@@ -373,6 +647,8 @@ export default function HomeScreen() {
       setGroup(data);
       const groupCode = data?.groupCode ?? data?.code;
       setUser({ ...currentUser, groupId: groupCode ?? currentUser.groupId });
+      // Start realtime updates for this group
+      startGroupRealtime(groupCode || currentUser.groupId || null);
     } catch (e) {
       console.error("Group make error", e);
       setGroupError("Error creating group");
@@ -387,6 +663,10 @@ export default function HomeScreen() {
       console.log("addToGroupButton is pressed with register fetch ");
     }
     console.log("addToGroupButton is pressed ");
+    // Open join modal to enter code
+    setJoinError(null);
+    setJoinCode("");
+    setJoinVisible(true);
   };
 
 
@@ -535,6 +815,52 @@ export default function HomeScreen() {
 
       // After showing route overview, schedule auto-recenter if idle
       scheduleRecenter();
+
+      // Build and send weather route payload with 5km sampling
+      try {
+        const routeNkm = getEveryNkmPointsArray(coords, cum, totalDist, 5000);
+        // Flatten to [lat, lon, lat, lon, ...] as per backend example
+        const routeFlat: number[] = [];
+        for (const pt of routeNkm) {
+          const [lon, lat] = pt;
+          routeFlat.push(Number(lat), Number(lon));
+        }
+        const payload: any = {
+          hostPos: { longitude: startLng, latitude: startLat },
+          destination: { longitude: destLng, latitude: destLat },
+          route: routeFlat,
+        };
+        try { console.log("weather/route payload", payload); } catch {}
+        const wRes = await fetch("https://parf-api.up.railway.app/api/weather/route", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(payload),
+        });
+        try {
+          const wData = await wRes.json();
+          try { console.log("weather/route response raw", wData); } catch {}
+          const arr = Array.isArray(wData)
+            ? wData
+            : Array.isArray(wData?.alerts)
+            ? wData.alerts
+            : Array.isArray(wData?.coordinates)
+            ? wData.coordinates
+            : [];
+          const normalized = arr
+            .map((x: any) => {
+              const lon = x?.longitude ?? x?.long ?? x?.lng;
+              const lat = x?.latitude ?? x?.lang ?? x?.lat;
+              const type = x?.type ?? x?.condition ?? "";
+              return { long: Number(lon), lang: Number(lat), type: String(type) };
+            })
+            .filter((x: any) => Number.isFinite(x.long) && Number.isFinite(x.lang));
+          try { console.log("weather/route alerts normalized", normalized); } catch {}
+          setWeatherAlerts(normalized);
+          // Do not popup immediately — nearest alert popup is handled in the location watcher
+        } catch {}
+      } catch (e) {
+        console.warn("weather/route send error", e);
+      }
     } catch (err) {
       console.error(err);
       alert("Error building route");
@@ -547,6 +873,42 @@ export default function HomeScreen() {
     setTimeout(buildRoute, 350);
   };
 
+  const testWeatherPopup = () => {
+    triggerWeatherPopup("thunderstorm");
+  };
+
+  const openJoinModal = () => {
+    setJoinError(null);
+    setJoinCode("");
+    setJoinVisible(true);
+  };
+
+  const closeJoinModal = () => setJoinVisible(false);
+
+  const confirmJoinGroup = async () => {
+    const code = joinCode.trim();
+    if (!code) {
+      setJoinError("Enter group code");
+      return;
+    }
+    setIsJoining(true);
+    try {
+      const currentUser = await registerIfUnauthed();
+      if (!currentUser) {
+        setJoinError("Unable to authorize user");
+        return;
+      }
+      setUser({ ...currentUser, groupId: code });
+      setGroup({ code, groupCode: code });
+      await startGroupRealtime(code);
+      setJoinVisible(false);
+    } catch (e) {
+      setJoinError("Failed to join group");
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
   const clearRoute = () => {
     setRouteCoords(null);
     setRouteMeta(null);
@@ -554,6 +916,10 @@ export default function HomeScreen() {
     setEta(null);
     setDistance(null);
     setNextStep(null);
+    setWeatherAlerts([]);
+    setActiveWeatherEmoji(null);
+    nearestAlertIdxRef.current = null;
+    lastPopupAtRef.current = 0;
     setDestination(null);
     setDestinationName("");
     setCommittedPlaceName(null);
@@ -617,7 +983,84 @@ export default function HomeScreen() {
             </View>
           </Mapbox.PointAnnotation>
         )}
+
+        {weatherAlerts.map((a, i) => {
+          const isActive = i === (nearestAlertIdxRef.current ?? -1);
+          const auraSize = isActive ? 90 : 70;
+          const innerSize = isActive ? 52 : 44;
+          const emojiSize = isActive ? 28 : 22;
+          return (
+            <Mapbox.PointAnnotation key={`w${i}`} id={`w${i}`} coordinate={[a.long, a.lang]}>
+              <View style={styles.weatherMarkerWrap}>
+                <Animated.View
+                  style={[
+                    styles.weatherMarkerAura,
+                    {
+                      width: auraSize,
+                      height: auraSize,
+                      borderRadius: auraSize / 2,
+                      opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] }),
+                      transform: [
+                        { scale: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, isActive ? 1.8 : 1.6] }) },
+                      ],
+                    },
+                  ]}
+                />
+                <View style={[styles.weatherMarkerInner, { width: innerSize, height: innerSize, borderRadius: innerSize / 2 }]}>
+                  <Text style={[styles.weatherMarkerEmoji, { fontSize: emojiSize }]}>{emojiForType(a.type)}</Text>
+                </View>
+              </View>
+            </Mapbox.PointAnnotation>
+          );
+        })}
       </Mapbox.MapView>
+
+      {/* Join Group Modal */}
+      <Modal transparent visible={joinVisible} animationType="fade" onRequestClose={closeJoinModal}>
+        <Pressable style={styles.modalOverlay} onPress={closeJoinModal}>
+          <Pressable style={styles.joinModalCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.joinTitle}>Join Group</Text>
+            <TextInput
+              style={[styles.input, { marginTop: 10 }]}
+              placeholder="Enter group code"
+              placeholderTextColor="#9ca3af"
+              value={joinCode}
+              onChangeText={setJoinCode}
+              autoCapitalize="characters"
+            />
+            {joinError && <Text style={styles.errorText}>{joinError}</Text>}
+            <View style={styles.joinButtonsRow}>
+              <TouchableOpacity style={styles.modalButtonSecondary} onPress={closeJoinModal}>
+                <Text style={styles.buildButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButtonPrimary, isJoining && { opacity: 0.7 }]}
+                disabled={isJoining}
+                onPress={confirmJoinGroup}
+              >
+                <Text style={styles.buildButtonText}>{isJoining ? "Joining..." : "Join"}</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {activeWeatherEmoji && (
+        <View pointerEvents="none" style={styles.weatherPopupContainer}>
+          <Animated.View
+            style={[
+              styles.weatherPopupAura,
+              {
+                opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }),
+                transform: [
+                  { scale: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] }) },
+                ],
+              },
+            ]}
+          />
+          <Text style={styles.weatherPopupEmoji}>{activeWeatherEmoji}</Text>
+        </View>
+      )}
 
       {eta && distance && (
         <Animated.View
@@ -953,6 +1396,79 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   deleteButtonText: { color: "white", fontSize: 17, fontWeight: "600" },
+  // Join modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  joinModalCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "#1f2937",
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  joinTitle: { color: "#fff", fontSize: 20, fontWeight: "700", textAlign: "center" },
+  joinButtonsRow: {
+    marginTop: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  modalButtonSecondary: {
+    backgroundColor: "#374151",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    width: "48%",
+  },
+  modalButtonPrimary: {
+    backgroundColor: "#3B82F6",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    width: "48%",
+  },
+  weatherMarkerWrap: { alignItems: "center", justifyContent: "center" },
+  weatherMarkerAura: {
+    position: "absolute",
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "#f59e0b",
+  },
+  weatherMarkerInner: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#111827",
+    borderWidth: 3,
+    borderColor: "#f59e0b",
+  },
+  weatherMarkerEmoji: { fontSize: 22 },
+  weatherPopupContainer: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  weatherPopupAura: {
+    position: "absolute",
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "#f59e0b",
+  },
+  weatherPopupEmoji: { fontSize: 72, textAlign: "center" },
   routeTypeContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
