@@ -23,8 +23,9 @@ const MAPBOX_TOKEN =
 Mapbox.setAccessToken(MAPBOX_TOKEN);
 
 const { height } = Dimensions.get("window");
-const COLLAPSED_HEIGHT = 60;
+const COLLAPSED_HEIGHT = 80;
 const EXPANDED_HEIGHT = height * 0.82;
+
 
 export default function HomeScreen() {
   const [userCoords, setUserCoords] = useState<number[] | null>(null);
@@ -37,10 +38,21 @@ export default function HomeScreen() {
   const [distance, setDistance] = useState<string | null>(null);
   const [nextStep, setNextStep] = useState<string | null>(null);
 
+
   const translateY = useRef(new Animated.Value(height - COLLAPSED_HEIGHT)).current;
   const [isExpanded, setIsExpanded] = useState(false);
   const cameraRef = useRef<Mapbox.Camera>(null);
   const opacityAnim = useRef(new Animated.Value(0)).current;
+
+
+  interface User {
+    userName: string;
+    id: string;
+    groupId?: string;
+  }
+
+  const [user, setUser] = useState<User | null>(null);
+
 
   // === Get user location and track changes ===
   useEffect(() => {
@@ -50,25 +62,32 @@ export default function HomeScreen() {
         alert("Permission to access location was denied");
         return;
       }
+    // try to catch actual geo 
+    let lastKnown = await Location.getLastKnownPositionAsync({});
+    if (lastKnown) {
+      setUserCoords([lastKnown.coords.longitude, lastKnown.coords.latitude]);
+    }
 
-      // Get current user location once
-      const current = await Location.getCurrentPositionAsync({});
-      setUserCoords([current.coords.longitude, current.coords.latitude]);
+    // if not - request again
+    const current = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.High,
+    });
+    setUserCoords([current.coords.longitude, current.coords.latitude]);
 
-      // Continuously track user movement and update coordinates
-      await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 5,
-        },
-        (loc) => {
-          setUserCoords([loc.coords.longitude, loc.coords.latitude]);
-        }
-      );
+    // after sucsess - folowing actual geolocation data
+    await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        distanceInterval: 5,
+      },
+      (loc) => {
+        setUserCoords([loc.coords.longitude, loc.coords.latitude]);
+      }
+    );
+
     })();
   }, []);
 
-  // Recenter camera to user position
   const centerCamera = () => {
     if (!userCoords) return;
     cameraRef.current?.setCamera({
@@ -78,7 +97,15 @@ export default function HomeScreen() {
     });
   };
 
-  // === Handle sliding bottom sheet menu ===
+  const makeGroupButton = () => {
+    console.log("makeGroupButton");
+  };
+
+  const addToGroupButton = () => {
+    console.log("addToGroupButton");
+  };
+
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 5,
@@ -99,7 +126,6 @@ export default function HomeScreen() {
     })
   ).current;
 
-  // Open bottom sheet
   const openMenu = () => {
     setIsExpanded(true);
     Animated.timing(translateY, {
@@ -110,7 +136,6 @@ export default function HomeScreen() {
     }).start();
   };
 
-  // Close bottom sheet
   const closeMenu = () => {
     setIsExpanded(false);
     Animated.timing(translateY, {
@@ -121,10 +146,8 @@ export default function HomeScreen() {
     }).start();
   };
 
-  // Toggle between expanded/collapsed state
   const handlePress = () => (isExpanded ? closeMenu() : openMenu());
 
-  // === Mapbox Autocomplete for destination search ===
   useEffect(() => {
     const delay = setTimeout(async () => {
       if (destinationName.length < 3) return setSuggestions([]);
@@ -144,7 +167,6 @@ export default function HomeScreen() {
     return () => clearTimeout(delay);
   }, [destinationName]);
 
-  // Handle user selecting a suggestion from autocomplete list
   const handleSelectSuggestion = (item: any, e?: any) => {
     e?.stopPropagation?.();
     const coords = item.center;
@@ -153,7 +175,6 @@ export default function HomeScreen() {
     setSuggestions([]);
   };
 
-  // === Request route between user and destination ===
   const buildRoute = async () => {
     if (!userCoords || !destination) return alert("Missing coordinates");
 
@@ -192,14 +213,12 @@ export default function HomeScreen() {
     }
   };
 
-  // Wrapper for route build — hides keyboard and collapses the menu
   const handleBuildRoute = async () => {
     Keyboard.dismiss();
     closeMenu();
     setTimeout(buildRoute, 350);
   };
 
-  // Clear route and destination data
   const clearRoute = () => {
     setRouteCoords(null);
     setEta(null);
@@ -216,7 +235,6 @@ export default function HomeScreen() {
     }).start();
   };
 
-  // === UI Rendering ===
   return (
     <View style={styles.container}>
       <Mapbox.MapView
@@ -278,7 +296,7 @@ export default function HomeScreen() {
         {...panResponder.panHandlers}
         style={[styles.bottomSheet, { transform: [{ translateY }] }]}
       >
-        <Pressable onPress={handlePress} pointerEvents="box-none" style={{ flex: 1 }}>
+        <Pressable onPress={handlePress} style={{ flex: 1 }}>
           <View style={styles.handleContainer}>
             <View style={styles.hiddenHandle} />
           </View>
@@ -291,7 +309,7 @@ export default function HomeScreen() {
             }}
           >
             <ScrollView style={styles.expandedContent} keyboardShouldPersistTaps="handled">
-              <Text style={styles.sheetTitle}>Navigator</Text>
+              <Text style={styles.sheetTitle}>{user?.userName || "Ghost"}</Text>
 
               {/* Transport mode selector */}
               <View style={styles.routeTypeContainer}>
@@ -353,6 +371,17 @@ export default function HomeScreen() {
               <TouchableOpacity style={styles.centerButton} onPress={centerCamera}>
                 <Text style={styles.buildButtonText}>🎯 Center on Me</Text>
               </TouchableOpacity>
+
+              {/* Group buttons */}
+              <View style={styles.groupButtonsContainer}>
+                <TouchableOpacity style={styles.makeGroupButton} onPress={makeGroupButton}>
+                  <Text style={styles.buildButtonText}>👥 Group</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.addToGroupButton} onPress={addToGroupButton}>
+                  <Text style={styles.buildButtonText}>➕ Add to Group</Text>
+                </TouchableOpacity>
+              </View>
 
               {routeCoords && (
                 <TouchableOpacity style={styles.deleteButton} onPress={clearRoute}>
@@ -438,6 +467,7 @@ const styles = StyleSheet.create({
   expandedContent: { paddingTop: 10 },
   sheetTitle: {
     color: "#fff",
+    alignSelf: "center",
     fontSize: 22,
     fontWeight: "700",
     marginBottom: 16,
@@ -477,6 +507,26 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 10,
     alignItems: "center",
+  },
+  groupButtonsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: 10,
+  },
+  makeGroupButton: {
+    backgroundColor: "#4F8EF7",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    width: "48%",
+  },
+  addToGroupButton: {
+    backgroundColor: "#36C36E",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    width: "48%",
   },
   deleteButton: {
     backgroundColor: "#EF4444",
