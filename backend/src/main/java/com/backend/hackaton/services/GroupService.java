@@ -21,11 +21,11 @@ public class GroupService {
         return groupRepository.saveNewRecord(groupDTO);
     }
 
-    public boolean joinGroup(UUID userId, String groupCode, String username) {
+    public GroupDTO joinGroup(UUID userId, String groupCode, String username) {
 
         GroupDTO group = groupRepository.getGroupByCode(groupCode);
         group.addMember(new Member(userId, username, false));
         groupRepository.updateRecord(group);
-        return true;
+        return group;
     }
 }

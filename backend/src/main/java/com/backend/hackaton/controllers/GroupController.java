@@ -37,10 +37,10 @@ public class GroupController {
 
     @PostMapping("/joinGroup")
     public ResponseEntity<?> joinGroup(UUID userId, String groupCode, String username) {
-        if(groupService.joinGroup(userId, groupCode, username) == true){
-            return ResponseEntity.ok().build();
+        if(groupService.joinGroup(userId, groupCode, username) == null){
+            return ResponseEntity.status(400).body("Failed to join group");
         } else {
-            return ResponseEntity.status(404).body("Group not found");
+            return ResponseEntity.ok(groupService.joinGroup(userId, groupCode, username));
         }
     }
 
