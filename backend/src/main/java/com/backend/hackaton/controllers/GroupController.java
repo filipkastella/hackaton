@@ -1,12 +1,15 @@
 package com.backend.hackaton.controllers;
 
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import java.util.UUID;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
+import org.springframework.web.bind.annotation.*;
+
+import com.backend.hackaton.dto.updatePosDTO;
 import com.backend.hackaton.models.GroupDTO;
 import com.backend.hackaton.models.GroupPostDTO;
 import com.backend.hackaton.models.Member;
@@ -42,6 +45,29 @@ public class GroupController {
         } else {
             return ResponseEntity.ok(groupService.joinGroup(userId, groupCode, username));
         }
+    }
+
+    @PostMapping("/updatePosition")
+    public ResponseEntity<?> updateMemberPosition(@RequestParam String groupCode,
+                                                @RequestParam UUID userId,
+                                                @RequestParam double latitude,
+                                                @RequestParam double longitude) {
+        try {
+            boolean updated = groupService.updateMemberPosition(groupCode, userId, latitude, longitude);
+            if (updated) {
+                return ResponseEntity.ok().body("Position updated successfully");
+            } else {
+                return ResponseEntity.status(404).body("Group or member not found");
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error updating position: " + e.getMessage());
+        }
+    }
+
+    @MessageMapping("/{sessionCode}")
+    @SendTo("/receive/{sessionCode}")
+    public void processMessage(@DestinationVariable String sessionCode, @RequestBody updatePosDTO data) {
+        
     }
 
 }
