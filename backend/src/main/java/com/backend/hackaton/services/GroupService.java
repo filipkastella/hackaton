@@ -35,7 +35,30 @@ public class GroupService {
         return group;
     }
 
-    public GroupDTO updatePos(updatePosDTO data) {
-        return null;
+    /**
+     * Update member position in a group
+     */
+    public boolean updateMemberPosition(String groupCode, UUID userId, double latitude, double longitude) {
+        try {
+            GroupDTO group = groupRepository.getGroupByCode(groupCode);
+            if (group == null) {
+                return false;
+            }
+
+            // Find the member and update their position
+            for (Member member : group.getMembers()) {
+                if (member.getId().equals(userId)) {
+                    Position newPosition = new Position((float) longitude, (float) latitude);
+                    member.setPos(newPosition);
+                    group.updateLastActivity(); // Update group's last activity
+                    groupRepository.updateRecord(group);
+                    return true;
+                }
+            }
+            
+            return false; // Member not found
+        } catch (Exception e) {
+            throw new RuntimeException("Error updating member position", e);
+        }
     }
 }
