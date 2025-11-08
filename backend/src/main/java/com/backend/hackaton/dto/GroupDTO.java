@@ -1,7 +1,10 @@
-package com.backend.hackaton.models;
+package com.backend.hackaton.dto;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+
+import com.backend.hackaton.models.Member;
+import com.backend.hackaton.models.Position;
 
 public class GroupDTO {
 

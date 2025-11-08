@@ -13,10 +13,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.backend.hackaton.dto.GroupDTO;
+import com.backend.hackaton.dto.GroupPostDTO;
 import com.backend.hackaton.dto.WebSocketResponse;
 import com.backend.hackaton.dto.updatePosDTO;
-import com.backend.hackaton.models.GroupDTO;
-import com.backend.hackaton.models.GroupPostDTO;
 import com.backend.hackaton.models.Member;
 import com.backend.hackaton.services.GroupService;
 

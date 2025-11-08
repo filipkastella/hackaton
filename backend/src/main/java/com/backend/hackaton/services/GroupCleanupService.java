@@ -1,6 +1,6 @@
 package com.backend.hackaton.services;
 
-import com.backend.hackaton.models.GroupDTO;
+import com.backend.hackaton.dto.GroupDTO;
 import com.backend.hackaton.repositories.GroupRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
