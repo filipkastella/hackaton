@@ -30,7 +30,7 @@ public class GroupRepository {
         this.redisTemplate = redisTemplate;
     }
 
-    public GroupDTO saveRecord(GroupDTO group) {
+    public GroupDTO saveNewRecord(GroupDTO group) {
         ValueOperations<String, String> ops = redisTemplate.opsForValue();
         String jsonValue;
 
@@ -78,6 +78,30 @@ public class GroupRepository {
             return objectMapper.readValue(jsonValue, GroupDTO.class);
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to deserialize JSON to DTO", e);
+        }
+    }
+
+    public GroupDTO updateRecord(GroupDTO group){
+            if (group.getCode() == null || group.getCode().isEmpty()) {
+            throw new IllegalArgumentException("Group code cannot be null or empty");
+        }
+
+        ValueOperations<String, String> ops = redisTemplate.opsForValue();
+        String key = PREFIX + group.getCode();
+
+        // Check if the record exists
+        String existingValue = ops.get(key);
+        if (existingValue == null) {
+            throw new IllegalStateException("Group with code " + group.getCode() + " does not exist");
+        }
+
+        // Serialize and update the record
+        try {
+            String jsonValue = objectMapper.writeValueAsString(group);
+            ops.set(key, jsonValue);
+            return group;
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize DTO to JSON", e);
         }
     }
 

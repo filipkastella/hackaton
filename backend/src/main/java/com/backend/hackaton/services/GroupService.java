@@ -18,14 +18,14 @@ public class GroupService {
     }
 
     public GroupDTO createSession(GroupDTO groupDTO) {
-        return groupRepository.saveRecord(groupDTO);
+        return groupRepository.saveNewRecord(groupDTO);
     }
 
     public boolean joinGroup(UUID userId, String groupCode, String username) {
 
         GroupDTO group = groupRepository.getGroupByCode(groupCode);
         group.addMember(new Member(userId, username, false));
-        groupRepository.saveRecord(group);
+        groupRepository.updateRecord(group);
         return true;
     }
 }
