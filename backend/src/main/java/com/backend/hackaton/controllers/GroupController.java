@@ -1,12 +1,18 @@
 package com.backend.hackaton.controllers;
 
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import java.util.UUID;
+
+import com.backend.hackaton.dto.updatePosDTO;
 import com.backend.hackaton.models.GroupDTO;
 import com.backend.hackaton.models.GroupPostDTO;
 import com.backend.hackaton.models.Member;
@@ -42,6 +48,12 @@ public class GroupController {
         } else {
             return ResponseEntity.ok(groupService.joinGroup(userId, groupCode, username));
         }
+    }
+
+    @MessageMapping("/{sessionCode}")
+    @SendTo("/receive/{sessionCode}")
+    public void processMessage(@DestinationVariable String sessionCode, @RequestBody updatePosDTO data) {
+        
     }
 
 }
