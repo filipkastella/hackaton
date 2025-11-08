@@ -7,7 +7,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.backend.hackaton.dto.updatePosDTO;
 import com.backend.hackaton.models.GroupDTO;
@@ -47,7 +50,7 @@ public class GroupController {
         }
     }
 
-    @PostMapping("/updatePosition")
+/*     @PostMapping("/updatePosition")
     public ResponseEntity<?> updateMemberPosition(@RequestParam String groupCode,
                                                 @RequestParam UUID userId,
                                                 @RequestParam double latitude,
@@ -62,7 +65,7 @@ public class GroupController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error updating position: " + e.getMessage());
         }
-    }
+    } */
 
     @MessageMapping("/{sessionCode}")
     @SendTo("/receive/{sessionCode}")
