@@ -16,9 +16,9 @@ public class GroupDTO {
     private boolean isActive;
 
     public GroupDTO() {
-        this.createdAt = LocalDateTime.now();
+        /* this.createdAt = LocalDateTime.now();
         this.lastActivity = LocalDateTime.now();
-        this.isActive = true;
+        this.isActive = true; */
     }
 
     public void addMember(Member member) {

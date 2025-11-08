@@ -5,13 +5,12 @@ import com.backend.hackaton.models.Position;
 public class GroupPostDTO {
 
     private UUID hostId;
-    private String hostUsername;
     private Position destination;
     private Position hostPos;
-    private String name;
+    private String username;
 
-    public String getName() {
-        return name;
+    public String getUsername() {
+        return username;
     }
 
     public Position getDestination() {
@@ -22,20 +21,12 @@ public class GroupPostDTO {
         return hostId;
     }
 
-    public String getHostUsername() {
-        return hostUsername;
-    }
-
     public Position getHostPos() {
         return hostPos;
     }
 
     public void setHostId(UUID hostId) {
         this.hostId = hostId;
-    }
-
-    public void setHostUsername(String hostUsername) {
-        this.hostUsername = hostUsername;
     }
 
     public void setDestination(Position destination) {
@@ -46,7 +37,7 @@ public class GroupPostDTO {
         this.hostPos = hostPos;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setUsername(String name) {
+        this.username = name;
     }
 }
