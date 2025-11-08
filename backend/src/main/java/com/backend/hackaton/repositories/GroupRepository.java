@@ -81,4 +81,53 @@ public class GroupRepository {
         }
     }
 
+    public void deleteGroup(String code) {
+        String key = PREFIX + code;
+        Boolean deleted = redisTemplate.delete(key);
+        if (Boolean.TRUE.equals(deleted)) {
+            System.out.println("Successfully deleted group from Redis: " + code);
+        } else {
+            System.err.println("Failed to delete group from Redis (key not found): " + code);
+        }
+    }
+
+    public java.util.Set<String> getAllGroupKeys() {
+        return redisTemplate.keys(PREFIX + "*");
+    }
+
+    public java.util.List<GroupDTO> getAllGroups() {
+        java.util.Set<String> keys = getAllGroupKeys();
+        java.util.List<GroupDTO> groups = new java.util.ArrayList<>();
+        
+        ValueOperations<String, String> ops = redisTemplate.opsForValue();
+        
+        for (String key : keys) {
+            String jsonValue = ops.get(key);
+            if (jsonValue != null) {
+                try {
+                    GroupDTO group = objectMapper.readValue(jsonValue, GroupDTO.class);
+                    groups.add(group);
+                } catch (JsonProcessingException e) {
+                    System.err.println("Failed to deserialize group with key: " + key);
+                }
+            }
+        }
+        
+        return groups;
+    }
+
+    public void updateGroup(GroupDTO group) {
+        if (group.getCode() != null) {
+            String key = PREFIX + group.getCode();
+            ValueOperations<String, String> ops = redisTemplate.opsForValue();
+            
+            try {
+                String jsonValue = objectMapper.writeValueAsString(group);
+                ops.set(key, jsonValue);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException("Failed to serialize DTO to JSON", e);
+            }
+        }
+    }
+
 }

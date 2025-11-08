@@ -20,4 +20,20 @@ public class Position {
     public float getLatitude() {
         return latitude;
     }
+
+    public void setLongitude(float longitude) {
+        this.longitude = longitude;
+    }
+
+    public void setLatitude(float latitude) {
+        this.latitude = latitude;
+    }
+
+    public void setLatitude(double latitude) {
+        this.latitude = (float) latitude;
+    }
+
+    public void setLongitude(double longitude) {
+        this.longitude = (float) longitude;
+    }
 }
