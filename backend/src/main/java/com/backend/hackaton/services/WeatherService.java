@@ -44,68 +44,92 @@ public class WeatherService {
 
         List<String> filteredTimes = new ArrayList<>();
         List<Double> filteredTemperatures = new ArrayList<>();
-        List<Integer> filteredPrecipitationProbabilities = new ArrayList<>();
+        List<Integer> filteredPrecipitation = new ArrayList<>();
         List<Long> filteredVisibility = new ArrayList<>();
-        List<Double> filteredWindSpeed10m = new ArrayList<>();
+        List<Double> filteredWindSpeed = new ArrayList<>();
 
         for (int i = 0; i < times.size(); i++) {
-            LocalDateTime timePoint = LocalDateTime.parse(times.get(i), formatter);
-
-            if (!timePoint.isBefore(now)) {
+            LocalDateTime time = LocalDateTime.parse(times.get(i), formatter);
+            if (time.isAfter(now)) {
                 filteredTimes.add(times.get(i));
                 filteredTemperatures.add(temperatures.get(i));
-                filteredPrecipitationProbabilities.add(precipitationProbabilities.get(i));
+                filteredPrecipitation.add(precipitationProbabilities.get(i));
                 filteredVisibility.add(visibility.get(i));
-                filteredWindSpeed10m.add(windSpeed10m.get(i));
+                filteredWindSpeed.add(windSpeed10m.get(i));
             }
         }
 
         response.getHourly().setTime(filteredTimes);
         response.getHourly().setTemperature_2m(filteredTemperatures);
-        response.getHourly().setPrecipitation_probability(filteredPrecipitationProbabilities);
+        response.getHourly().setPrecipitation_probability(filteredPrecipitation);
         response.getHourly().setVisibility(filteredVisibility);
-        response.getHourly().setWind_speed_10m(filteredWindSpeed10m);
+        response.getHourly().setWind_speed_10m(filteredWindSpeed);
 
         return response;
-
     }
 
     public RouteResponse getRouteWeather(RouteRequest route) {
         List<CoordinatesConditionDTO> responseList = new ArrayList<>();
-        List<Double> routeCoordinates = new ArrayList<>();
+        
+        try {
+            // Sample every Nth coordinate to reduce API calls (e.g., every 10th point)
+            int sampleRate = 10;
+            List<Double> sampledCoords = new ArrayList<>();
 
-        // Add host position
-        routeCoordinates.add(route.getHostPos().getLatitude());
-        routeCoordinates.add(route.getHostPos().getLongitude());
+            // Add host position
+            sampledCoords.add(route.getHostPos().getLatitude());
+            sampledCoords.add(route.getHostPos().getLongitude());
 
-        // Add route waypoints
-        for (Double coord : route.getRoute()) {
-            routeCoordinates.add(coord);
+            // Sample route waypoints
+            List<Double> routeCoords = route.getRoute();
+            for (int i = 0; i < routeCoords.size(); i += 2 * sampleRate) {
+                if (i < routeCoords.size() - 1) {
+                    sampledCoords.add(routeCoords.get(i));
+                    sampledCoords.add(routeCoords.get(i + 1));
+                }
+            }
+
+            // Add destination
+            sampledCoords.add(route.getDestination().getLatitude());
+            sampledCoords.add(route.getDestination().getLongitude());
+
+            System.out.println("Processing " + (sampledCoords.size() / 2) + " coordinate pairs (sampled from " + (routeCoords.size() / 2) + " waypoints)");
+
+            // Process each sampled coordinate pair
+            for (int i = 0; i < sampledCoords.size(); i += 2) {
+                try {
+                    Double latitude = sampledCoords.get(i);
+                    Double longitude = sampledCoords.get(i + 1);
+
+                    WeatherResponse weather = getWeather(latitude, longitude);
+                    String condition = analyzeWeatherCondition(weather);
+
+                    CoordinatesConditionDTO coordCondition = new CoordinatesConditionDTO();
+                    coordCondition.setLatitude(latitude);
+                    coordCondition.setLongitude(longitude);
+                    coordCondition.setCondition(condition);
+
+                    responseList.add(coordCondition);
+                    
+                    // Small delay to avoid overwhelming the API
+                    Thread.sleep(100);
+                } catch (Exception e) {
+                    System.err.println("Error processing coordinate pair: " + e.getMessage());
+                }
+            }
+
+            RouteResponse response = new RouteResponse();
+            response.setCoordinates(responseList);
+            return response;
+            
+        } catch (Exception e) {
+            System.err.println("Error in getRouteWeather: " + e.getMessage());
+            e.printStackTrace();
+            
+            RouteResponse errorResponse = new RouteResponse();
+            errorResponse.setCoordinates(new ArrayList<>());
+            return errorResponse;
         }
-
-        // Add destination
-        routeCoordinates.add(route.getDestination().getLatitude());
-        routeCoordinates.add(route.getDestination().getLongitude());
-
-        // Process each coordinate pair
-        for (int i = 0; i < routeCoordinates.size(); i += 2) {
-            Double latitude = routeCoordinates.get(i);
-            Double longitude = routeCoordinates.get(i + 1);
-
-            WeatherResponse weather = getWeather(latitude, longitude);
-            String condition = analyzeWeatherCondition(weather);
-
-            CoordinatesConditionDTO coordCondition = new CoordinatesConditionDTO();
-            coordCondition.setLatitude(latitude);
-            coordCondition.setLongitude(longitude);
-            coordCondition.setCondition(condition);
-
-            responseList.add(coordCondition);
-        }
-
-        RouteResponse response = new RouteResponse();
-        response.setCoordinates(responseList);
-        return response;
     }
 
     private String analyzeWeatherCondition(WeatherResponse weather) {
@@ -113,7 +137,6 @@ public class WeatherService {
             return "Unknown";
         }
 
-        // Get the first hour's data (most immediate forecast)
         List<Integer> precipitation = weather.getHourly().getPrecipitation_probability();
         List<Long> visibility = weather.getHourly().getVisibility();
         List<Double> windSpeed = weather.getHourly().getWind_speed_10m();
@@ -157,7 +180,6 @@ public class WeatherService {
             conditions.add("Windy");
         }
 
-        // Return combined condition or "Clear" if no adverse conditions
         if (conditions.isEmpty()) {
             return "Clear";
         }
