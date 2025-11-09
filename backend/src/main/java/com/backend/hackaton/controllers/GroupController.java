@@ -20,6 +20,16 @@ import com.backend.hackaton.dto.updatePosDTO;
 import com.backend.hackaton.models.Member;
 import com.backend.hackaton.services.GroupService;
 
+/**
+ * REST controller for managing group trip sessions.
+ * 
+ * <p>This controller handles HTTP endpoints for creating and joining group trips,
+ * as well as WebSocket endpoints for real-time position updates.</p>
+ * 
+ * @author Hackaton Team
+ * @version 1.0
+ * @since 2025-11-08
+ */
 @RestController
 @RequestMapping("/api/trip")
 public class GroupController {
@@ -27,12 +37,27 @@ public class GroupController {
     private final GroupService groupService;
     private final SimpMessagingTemplate messagingTemplate;
 
+    /**
+     * Constructs a GroupController with required dependencies.
+     * 
+     * @param groupService the service for group operations
+     * @param messagingTemplate the template for sending WebSocket messages
+     */
     @Autowired
     public GroupController(GroupService groupService, SimpMessagingTemplate messagingTemplate) {
         this.groupService = groupService;
         this.messagingTemplate = messagingTemplate;
     }
 
+    /**
+     * Creates a new group trip session.
+     * 
+     * <p>This endpoint initializes a new group with the host member and generates
+     * a unique group code for others to join.</p>
+     * 
+     * @param data the group creation request containing host information and destination
+     * @return ResponseEntity with the created GroupDTO containing the group code
+     */
     @PostMapping("/groupMake")
     public ResponseEntity<GroupDTO> groupMake(@RequestBody GroupPostDTO data) {
         GroupDTO group = new GroupDTO();
@@ -45,6 +70,17 @@ public class GroupController {
         
     }
 
+    /**
+     * Allows a user to join an existing group trip.
+     * 
+     * <p>Users provide their ID, username, and the group code to join.
+     * They will be added as a non-host member of the group.</p>
+     * 
+     * @param userId the unique identifier of the user joining
+     * @param groupCode the unique code of the group to join
+     * @param username the display name of the user
+     * @return ResponseEntity with the updated GroupDTO or 400 if join fails
+     */
     @PostMapping("/joinGroup")
     public ResponseEntity<?> joinGroup(UUID userId, String groupCode, String username) {
         if(groupService.joinGroup(userId, groupCode, username) == null){
@@ -71,6 +107,15 @@ public class GroupController {
         }
     } */
 
+    /**
+     * WebSocket endpoint for real-time position updates.
+     * 
+     * <p>Receives position updates from group members via WebSocket and broadcasts
+     * the update to all subscribers of the session.</p>
+     * 
+     * @param sessionCode the unique code of the group session
+     * @param data the position update data containing user ID and new coordinates
+     */
     @MessageMapping("/{sessionCode}")
     @SendTo("/receive/{sessionCode}")
     public void processMessage(@DestinationVariable String sessionCode, @RequestBody updatePosDTO data) {

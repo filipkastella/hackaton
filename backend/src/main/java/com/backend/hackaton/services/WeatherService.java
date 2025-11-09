@@ -13,11 +13,32 @@ import com.backend.hackaton.dto.RouteRequest;
 import com.backend.hackaton.dto.RouteResponse;
 import com.backend.hackaton.dto.WeatherResponse;
 
+/**
+ * Service for fetching and analyzing weather data.
+ * 
+ * <p>This service integrates with the Open-Meteo API to retrieve weather forecasts
+ * and analyzes conditions to provide human-readable weather descriptions for routes.</p>
+ * 
+ * @author Hackaton Team
+ * @version 1.0
+ * @since 2025-11-08
+ */
 @Service
 public class WeatherService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    /**
+     * Fetches weather forecast data for a specific coordinate.
+     * 
+     * <p>Retrieves hourly weather data from Open-Meteo API including temperature,
+     * precipitation probability, visibility, and wind speed. Filters out past data
+     * to only return future forecast hours.</p>
+     * 
+     * @param latitude the latitude of the location
+     * @param longitude the longitude of the location
+     * @return WeatherResponse containing filtered forecast data for future hours
+     */
     public WeatherResponse getWeather(Double latitude, Double longitude) {
         String url = String.format(
                 "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&hourly=temperature_2m,precipitation_probability,visibility,wind_speed_10m&current=precipitation,wind_speed_10m&forecast_days=1",
@@ -28,6 +49,15 @@ public class WeatherService {
         return filterFutureData(response);
     }
 
+    /**
+     * Filters weather data to only include future timestamps.
+     * 
+     * <p>Removes all hourly forecast entries that are in the past, keeping only
+     * future forecasts relevant for trip planning.</p>
+     * 
+     * @param response the raw weather response from the API
+     * @return filtered WeatherResponse with only future forecast data
+     */
     private WeatherResponse filterFutureData(WeatherResponse response) {
         if (response == null || response.getHourly() == null) {
             return response;
@@ -68,6 +98,16 @@ public class WeatherService {
         return response;
     }
 
+    /**
+     * Analyzes weather conditions along a route.
+     * 
+     * <p>Samples coordinates from the route (start, waypoints, destination) and fetches
+     * weather data for each. To avoid API rate limiting, only every 10th waypoint is sampled.
+     * Each coordinate receives a human-readable weather condition description.</p>
+     * 
+     * @param route the route request containing start position, waypoints, and destination
+     * @return RouteResponse with weather conditions for sampled coordinates
+     */
     public RouteResponse getRouteWeather(RouteRequest route) {
         List<CoordinatesConditionDTO> responseList = new ArrayList<>();
         
@@ -132,6 +172,22 @@ public class WeatherService {
         }
     }
 
+    /**
+     * Analyzes weather data and converts it to human-readable conditions.
+     * 
+     * <p>Evaluates precipitation probability, visibility, and wind speed to generate
+     * descriptive weather conditions. Multiple conditions can be combined (e.g., "Raining, Windy").</p>
+     * 
+     * <p>Condition thresholds:</p>
+     * <ul>
+     *   <li>Precipitation: Light Rain (>10%), Raining (>30%), Storm (>55%), Heavy Storm (>80%)</li>
+     *   <li>Visibility: Reduced (<10km), Foggy (<5km), Dense Fog (<1km)</li>
+     *   <li>Wind: Windy (>25km/h), Strong Winds (>40km/h), Severe Winds (>60km/h)</li>
+     * </ul>
+     * 
+     * @param weather the weather response data to analyze
+     * @return human-readable weather condition string (e.g., "Clear", "Storm, Foggy", "Unknown")
+     */
     private String analyzeWeatherCondition(WeatherResponse weather) {
         if (weather == null || weather.getHourly() == null) {
             return "Unknown";

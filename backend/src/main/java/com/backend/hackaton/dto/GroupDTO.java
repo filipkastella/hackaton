@@ -6,6 +6,16 @@ import java.util.ArrayList;
 import com.backend.hackaton.models.Member;
 import com.backend.hackaton.models.Position;
 
+/**
+ * Data Transfer Object for group trip sessions.
+ * 
+ * <p>Contains all information about a collaborative trip including members,
+ * destination, and activity tracking for session lifecycle management.</p>
+ * 
+ * @author Hackaton Team
+ * @version 1.0
+ * @since 2025-11-08
+ */
 public class GroupDTO {
 
     private String code;
@@ -15,17 +25,28 @@ public class GroupDTO {
     private LocalDateTime lastActivity;
     private boolean isActive;
 
+    /**
+     * Constructs a new GroupDTO with current timestamp.
+     */
     public GroupDTO() {
         this.createdAt = LocalDateTime.now();
         this.lastActivity = LocalDateTime.now();
         this.isActive = true;
     }
 
+    /**
+     * Adds a member to the group and updates last activity.
+     * 
+     * @param member the member to add
+     */
     public void addMember(Member member) {
         members.add(member);
         updateLastActivity();
     }
 
+    /**
+     * Updates the last activity timestamp to current time.
+     */
     public void updateLastActivity() {
         this.lastActivity = LocalDateTime.now();
     }
