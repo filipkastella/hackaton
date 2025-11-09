@@ -5,6 +5,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  AppState,
   Keyboard,
   Modal,
   PanResponder,
@@ -59,6 +60,10 @@ export default function HomeScreen() {
   const [group, setGroup] = useState<any | null>(null);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
+  const [copiedGroupCode, setCopiedGroupCode] = useState(false);
+  const [groupCodeDisplay, setGroupCodeDisplay] = useState("");
+  const [fabOpen, setFabOpen] = useState(false);
+  const [fabLeftOpen, setFabLeftOpen] = useState(false);
 
   // Weather alerts and popup
   const [weatherAlerts, setWeatherAlerts] = useState<{
@@ -67,6 +72,7 @@ export default function HomeScreen() {
     type?: string;
   }[]>([]);
   const [activeWeatherEmoji, setActiveWeatherEmoji] = useState<string | null>(null);
+  const [activePopupLabel, setActivePopupLabel] = useState<string | null>(null);
 
   // Join group modal state
   const [joinVisible, setJoinVisible] = useState(false);
@@ -80,6 +86,7 @@ export default function HomeScreen() {
   const cameraRef = useRef<Mapbox.Camera>(null);
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(0)).current;
+  const pulseLoopRef = useRef<any | null>(null);
   const nearestAlertIdxRef = useRef<number | null>(null);
   const lastPopupAtRef = useRef<number>(0);
 
@@ -88,14 +95,31 @@ export default function HomeScreen() {
   const stompConnectedRef = useRef<boolean>(false);
   const heartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    // Shared pulsing animation for weather markers and popup
-    Animated.loop(
+  const startPulseLoop = () => {
+    try { pulseLoopRef.current?.stop?.(); } catch {}
+    try { pulseAnim.stopAnimation?.(); } catch {}
+    pulseAnim.setValue(0);
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 0, duration: 1000, useNativeDriver: true }),
-      ])
-    ).start();
+      ]),
+      { resetBeforeIteration: true }
+    );
+    pulseLoopRef.current = loop;
+    loop.start();
+  };
+
+  useEffect(() => {
+    // Start pulsing and restart on app foreground
+    startPulseLoop();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') startPulseLoop();
+    });
+    return () => {
+      try { pulseLoopRef.current?.stop?.(); } catch {}
+      sub.remove();
+    };
   }, []);
 
   // GPS noise filter helpers
@@ -215,9 +239,12 @@ export default function HomeScreen() {
   const triggerWeatherPopup = (type?: string) => {
     try {
       const emoji = emojiForType(type);
-      try { console.log("[Weather Popup] Showing emoji:", emoji, "(type=", type || "", ")"); } catch {}
+      const label = labelForWeatherType(type);
+      try { console.log("[Weather Popup] Showing:", emoji, label, "(type=", type || "", ")"); } catch {}
+      startPulseLoop();
       setActiveWeatherEmoji(emoji);
-      setTimeout(() => setActiveWeatherEmoji(null), 10000); // show for 10 seconds
+      setActivePopupLabel(label);
+      setTimeout(() => { setActiveWeatherEmoji(null); setActivePopupLabel(null); }, 10000); // 10s
     } catch {}
   };
 
@@ -229,6 +256,51 @@ export default function HomeScreen() {
   }
 
   const [user, setUser] = useState<User | null>(null);
+
+  // Keep a single source of truth for the shown code string
+  useEffect(() => {
+    const extracted = extractGroupCode(group);
+    const fallback = user?.groupId ? String(user.groupId) : "";
+    setGroupCodeDisplay(String(extracted ?? fallback));
+  }, [group, user?.groupId]);
+
+  // Clipboard helper that works across Expo/native/web without hard deps
+  const copyTextToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      // Try Expo Clipboard
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const exp = require("expo-clipboard");
+      if (exp?.setStringAsync) {
+        await exp.setStringAsync(String(text));
+        return true;
+      }
+    } catch {}
+    try {
+      // Try community RN clipboard
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const rnClip = require("@react-native-clipboard/clipboard");
+      if (rnClip?.setString) {
+        rnClip.setString(String(text));
+        return true;
+      }
+    } catch {}
+    try {
+      // Web fallback
+      if (typeof navigator !== "undefined" && (navigator as any).clipboard?.writeText) {
+        await (navigator as any).clipboard.writeText(String(text));
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+
+  const handleCopyGroupCode = async () => {
+    const codeStr = String(groupCodeDisplay).trim();
+    if (!codeStr) return;
+    await copyTextToClipboard(codeStr);
+    setCopiedGroupCode(true);
+    setTimeout(() => setCopiedGroupCode(false), 1400);
+  };
 
   // Register user on-demand if not authorized
   const registerIfUnauthed = async (): Promise<User | null> => {
@@ -267,6 +339,25 @@ export default function HomeScreen() {
 
   const isFiniteNumber = (n: any) => typeof n === 'number' && Number.isFinite(n);
   const isValidPosition = (p: any) => p && isFiniteNumber(p.longitude) && isFiniteNumber(p.latitude);
+
+  // Safely extract an alphanumeric group code from various server responses
+  const extractGroupCode = (obj: any, fallback?: string | null): string | null => {
+    try {
+      const pick = (v: any) => (v === null || v === undefined ? "" : String(v).trim());
+      const candidates = [
+        pick(obj?.groupCode),
+        pick(obj?.code),
+        pick(obj?.data?.groupCode),
+        pick(obj?.data?.code),
+      ];
+      for (const c of candidates) {
+        if (!c) continue;
+        // Must contain a letter to avoid numeric HTTP status codes; allow A-Z, 0-9 and '-'
+        if (/[A-Za-z]/.test(c) && /^[A-Za-z0-9-]{4,}$/.test(c)) return c;
+      }
+    } catch {}
+    return fallback ?? null;
+  };
 
   // Start STOMP client and publish coords every 2s
   const stopGroupRealtime = () => {
@@ -645,7 +736,7 @@ export default function HomeScreen() {
 
       // success
       setGroup(data);
-      const groupCode = data?.groupCode ?? data?.code;
+      const groupCode = extractGroupCode(data);
       setUser({ ...currentUser, groupId: groupCode ?? currentUser.groupId });
       // Start realtime updates for this group
       startGroupRealtime(groupCode || currentUser.groupId || null);
@@ -877,6 +968,21 @@ export default function HomeScreen() {
     triggerWeatherPopup("thunderstorm");
   };
 
+  // Trigger the same center-screen aura popup with a direct emoji
+  const triggerCustomPopup = (emoji: string, explicitLabel?: string) => {
+    const label = explicitLabel ?? (() => {
+      if (emoji === "🛑") return "Stop";
+      if (emoji === "📞") return "Call Me";
+      if (emoji === "⚠️") return "Pay Attention";
+      return "";
+    })();
+    try { console.log("[Action Popup]", emoji, label); } catch {}
+    startPulseLoop();
+    setActiveWeatherEmoji(emoji);
+    setActivePopupLabel(label);
+    setTimeout(() => { setActiveWeatherEmoji(null); setActivePopupLabel(null); }, 10000);
+  };
+
   const openJoinModal = () => {
     setJoinError(null);
     setJoinCode("");
@@ -893,14 +999,10 @@ export default function HomeScreen() {
     }
     setIsJoining(true);
     try {
-      const currentUser = await registerIfUnauthed();
-      if (!currentUser) {
-        setJoinError("Unable to authorize user");
-        return;
-      }
-      setUser({ ...currentUser, groupId: code });
-      setGroup({ code, groupCode: code });
-      await startGroupRealtime(code);
+      // No backend call — just reflect the code in UI
+      const shown = extractGroupCode({ code }, code) ?? code;
+      setGroup({ code: shown, groupCode: shown, members: group?.members ?? [] });
+      if (user) setUser({ ...user, groupId: shown });
       setJoinVisible(false);
     } catch (e) {
       setJoinError("Failed to join group");
@@ -918,6 +1020,7 @@ export default function HomeScreen() {
     setNextStep(null);
     setWeatherAlerts([]);
     setActiveWeatherEmoji(null);
+    setActivePopupLabel(null);
     nearestAlertIdxRef.current = null;
     lastPopupAtRef.current = 0;
     setDestination(null);
@@ -1059,6 +1162,9 @@ export default function HomeScreen() {
             ]}
           />
           <Text style={styles.weatherPopupEmoji}>{activeWeatherEmoji}</Text>
+          {!!activePopupLabel && (
+            <Text style={styles.weatherPopupLabel}>{activePopupLabel}</Text>
+          )}
         </View>
       )}
 
@@ -1082,6 +1188,95 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
       )}
+
+      {/* Floating Action Buttons: Right and Left */}
+      {/* Left-side menu (📢) */}
+      <View style={[styles.fabWrapperLeft, { bottom: insets.bottom + 120 }]} pointerEvents="box-none">
+        {fabLeftOpen && (
+          <View style={styles.fabActions}>
+            <TouchableOpacity
+              style={styles.fabAction}
+              onPress={() => { setFabLeftOpen(false); triggerCustomPopup("🚓", "Police"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.fabEmoji}>🚓</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fabAction}
+              onPress={() => { setFabLeftOpen(false); triggerCustomPopup("💥", "Road Accident"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.fabEmoji}>💥</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fabAction}
+              onPress={() => { setFabLeftOpen(false); triggerCustomPopup("🚗", "Traffic Jam"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.fabEmoji}>🚗</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fabAction}
+              onPress={() => { setFabLeftOpen(false); triggerCustomPopup("🕳️", "Bad Road"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.fabEmoji}>🕳️</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fabAction}
+              onPress={() => { setFabLeftOpen(false); triggerCustomPopup("🚧", "Road Working"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.fabEmoji}>🚧</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        <TouchableOpacity
+          style={[styles.fabMain, fabLeftOpen && { backgroundColor: "#ffffff" }]}
+          onPress={() => setFabLeftOpen((v) => !v)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.fabEmoji}>{fabLeftOpen ? "✖️" : "📢"}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Right-side menu (🚨) */}
+      <View style={[styles.fabWrapper, { bottom: insets.bottom + 120 }]} pointerEvents="box-none">
+        {/* Expanded actions */}
+        {fabOpen && (
+          <View style={styles.fabActions}>
+            <TouchableOpacity
+              style={styles.fabAction}
+              onPress={() => { setFabOpen(false); triggerCustomPopup("🛑"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.fabEmoji}>🛑</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fabAction}
+              onPress={() => { setFabOpen(false); triggerCustomPopup("📞"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.fabEmoji}>📞</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fabAction}
+              onPress={() => { setFabOpen(false); triggerCustomPopup("⚠️"); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.fabEmoji}>⚠️</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {/* Main toggle ball */}
+        <TouchableOpacity
+          style={[styles.fabMain, fabOpen && { backgroundColor: "#ffffff" }]}
+          onPress={() => setFabOpen((v) => !v)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.fabEmoji}>{fabOpen ? "✖️" : "🚨"}</Text>
+        </TouchableOpacity>
+      </View>
 
       <Animated.View
         {...panResponder.panHandlers}
@@ -1190,8 +1385,14 @@ export default function HomeScreen() {
 
               {group && (
                 <View style={styles.groupInfoCard}>
-                  <Text style={styles.groupCodeBig}>
-                    {String(group?.code ?? group?.groupCode ?? "")}
+                  <Text style={styles.groupLabel}>Group Code</Text>
+                  <TouchableOpacity onPress={handleCopyGroupCode} activeOpacity={0.7}>
+                    <Text style={styles.groupCodeBig}>
+                      {String(groupCodeDisplay)}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={styles.copyHelpText}>
+                    {copiedGroupCode ? "Copied!" : "Tap code to copy"}
                   </Text>
                   <View style={{ marginTop: 8 }}>
                     {(() => {
@@ -1463,12 +1664,13 @@ const styles = StyleSheet.create({
   },
   weatherPopupAura: {
     position: "absolute",
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
     backgroundColor: "#f59e0b",
   },
-  weatherPopupEmoji: { fontSize: 72, textAlign: "center" },
+  weatherPopupEmoji: { fontSize: 112, textAlign: "center" },
+  weatherPopupLabel: { color: "#fff", fontSize: 16, textAlign: "center", marginTop: 6, fontWeight: "700" },
   routeTypeContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1494,6 +1696,51 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 10,
   },
+  groupLabel: { color: "#9ca3af", fontSize: 13, fontWeight: "600", textAlign: "center" },
   groupCodeBig: { color: "#fff", fontSize: 30, fontWeight: "800", textAlign: "center" },
+  copyHelpText: { color: "#9ca3af", fontSize: 12, textAlign: "center", marginTop: 2 },
   groupMember: { color: "#e5e7eb", fontSize: 16, lineHeight: 22 },
+  // Floating side button styles
+  fabWrapper: {
+    position: "absolute",
+    right: 16,
+    // bottom set dynamically using safe area
+    alignItems: "center",
+  },
+  fabWrapperLeft: {
+    position: "absolute",
+    left: 16,
+    // bottom set dynamically using safe area
+    alignItems: "center",
+  },
+  fabMain: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  fabEmoji: { fontSize: 24 },
+  fabActions: {
+    marginBottom: 10,
+    alignItems: "center",
+    gap: 10,
+  },
+  fabAction: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#374151",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 5,
+  },
 });
