@@ -11,6 +11,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.backend.hackaton.dto.GroupDTO;
@@ -82,7 +83,7 @@ public class GroupController {
      * @return ResponseEntity with the updated GroupDTO or 400 if join fails
      */
     @PostMapping("/joinGroup")
-    public ResponseEntity<?> joinGroup(UUID userId, String groupCode, String username) {
+    public ResponseEntity<?> joinGroup(@RequestParam UUID userId, @RequestParam String groupCode, @RequestParam String username) {
         if(groupService.joinGroup(userId, groupCode, username) == null){
             return ResponseEntity.status(400).body("Failed to join group");
         } else {
